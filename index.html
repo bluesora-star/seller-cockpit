@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>셀러 콕핏 (Seller Cockpit) - 1인 이커머스 통합 관제 대시보드</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen antialiased flex flex-col">
+
+  <!-- Top Navigation Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-100">
+          <i data-lucide="store" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold text-slate-900 tracking-tight">셀러 콕핏 (Seller Cockpit)</h1>
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">1인 운영 관제탑</span>
+          </div>
+          <p class="text-xs text-slate-500" id="liveClock">로딩 중...</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Utilities -->
+      <div class="flex items-center gap-2">
+        <button onclick="loadSampleData()" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-1.5" title="체험용 샘플 데이터를 채웁니다">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-500"></i>
+          <span>샘플 데이터</span>
+        </button>
+        <button onclick="backupData()" class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition-colors flex items-center gap-1.5" title="모든 기록을 JSON 파일로 백업">
+          <i data-lucide="download" class="w-3.5 h-3.5 text-slate-500"></i>
+          <span>데이터 백업</span>
+        </button>
+        <label class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer" title="JSON 백업 파일 복원">
+          <i data-lucide="upload" class="w-3.5 h-3.5 text-slate-500"></i>
+          <span>복원</span>
+          <input type="file" id="restoreFileInput" accept=".json" class="hidden" onchange="restoreData(event)">
+        </label>
+        <button onclick="resetAllData()" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="전체 데이터 초기화">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- 1. Top Stat Cards (3초 퀵 현황) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- 이번 달 총 매출 -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 text-xs font-medium mb-1">
+          <span>이번 달 총 매출</span>
+          <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600"><i data-lucide="trending-up" class="w-4 h-4"></i></span>
+        </div>
+        <div class="text-2xl font-black text-slate-900 tracking-tight" id="statRevenue">0원</div>
+        <p class="text-xs text-slate-400 mt-1 flex items-center gap-1">
+          <span id="statOrderCount">0</span>건 주문 기준
+        </p>
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-blue-500"></div>
+      </div>
+
+      <!-- 이번 달 총 순이익 -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 text-xs font-medium mb-1">
+          <span>이번 달 순이익</span>
+          <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600"><i data-lucide="wallet" class="w-4 h-4"></i></span>
+        </div>
+        <div class="text-2xl font-black text-emerald-600 tracking-tight" id="statProfit">0원</div>
+        <p class="text-xs text-slate-400 mt-1">
+          매입가 차감 실질 순수익
+        </p>
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500"></div>
+      </div>
+
+      <!-- 평균 마진율 -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 text-xs font-medium mb-1">
+          <span>평균 마진율</span>
+          <span class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600"><i data-lucide="pie-chart" class="w-4 h-4"></i></span>
+        </div>
+        <div class="text-2xl font-black text-indigo-600 tracking-tight" id="statMargin">0.0%</div>
+        <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+          <div id="statMarginBar" class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500"></div>
+      </div>
+
+      <!-- 아침 핵심 액션: 발주 필요 건수 -->
+      <div class="bg-white p-5 rounded-2xl border border-amber-200 bg-gradient-to-br from-white to-amber-50/40 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+        <div class="flex items-center justify-between text-amber-800 text-xs font-semibold mb-1">
+          <span>⚠️ 오늘 발주 필요 (신규 주문)</span>
+          <span class="p-1.5 rounded-lg bg-amber-100 text-amber-700"><i data-lucide="alert-circle" class="w-4 h-4"></i></span>
+        </div>
+        <div class="text-2xl font-black text-amber-700 tracking-tight" id="statPendingOrders">0건</div>
+        <p class="text-xs text-amber-600/80 mt-1 font-medium" id="statPendingHelp">
+          아침에 최우선 처리할 주문
+        </p>
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-amber-500"></div>
+      </div>
+    </section>
+
+    <!-- Multi-Channel Quick Launcher -->
+    <section class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="external-link" class="w-4 h-4 text-slate-400"></i>
+          <h2 class="text-xs font-bold text-slate-600 uppercase tracking-wider">멀티채널 판매자 센터 & 소싱처 바로가기</h2>
+        </div>
+        <span class="text-xs text-slate-400">새 탭에서 열기</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+        <a href="https://wing.coupang.com" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-red-50 hover:border-red-200 border border-slate-200 rounded-xl transition-all group">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500 group-hover:scale-125 transition-transform"></span>
+          <span class="text-xs font-semibold text-slate-700 group-hover:text-red-700">쿠팡 윙 (WING)</span>
+        </a>
+        <a href="https://store.lotteon.com" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 border border-slate-200 rounded-xl transition-all group">
+          <span class="w-2.5 h-2.5 rounded-full bg-rose-500 group-hover:scale-125 transition-transform"></span>
+          <span class="text-xs font-semibold text-slate-700 group-hover:text-rose-700">롯데온 스토어</span>
+        </a>
+        <a href="https://qsm.qoo10.jp" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 border border-slate-200 rounded-xl transition-all group">
+          <span class="w-2.5 h-2.5 rounded-full bg-blue-500 group-hover:scale-125 transition-transform"></span>
+          <span class="text-xs font-semibold text-slate-700 group-hover:text-blue-700">큐텐 재팬 QSM</span>
+        </a>
+        <a href="https://seller.kuajingmaihuo.com" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-orange-50 hover:border-orange-200 border border-slate-200 rounded-xl transition-all group">
+          <span class="w-2.5 h-2.5 rounded-full bg-orange-500 group-hover:scale-125 transition-transform"></span>
+          <span class="text-xs font-semibold text-slate-700 group-hover:text-orange-700">테무 셀러센터</span>
+        </a>
+        <a href="https://domemae.com" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 border border-slate-200 rounded-xl transition-all group">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform"></span>
+          <span class="text-xs font-semibold text-slate-700 group-hover:text-emerald-700">도매매 / 도매꾹</span>
+        </a>
+        <a href="https://www.1688.com" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 border border-slate-200 rounded-xl transition-all group">
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-500 group-hover:scale-125 transition-transform"></span>
+          <span class="text-xs font-semibold text-slate-700 group-hover:text-amber-700">1688 / 타오바오</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- Main Grid: Orders & Sourcing -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left 2 Cols: Orders & Sales Management -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- 3-Second Quick Sales & Order Input Form -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5" id="orderInputSection">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600"><i data-lucide="plus-circle" class="w-4 h-4"></i></span>
+              <h2 class="text-sm font-bold text-slate-900">3초 퀵 주문 & 판매 기록 (단일 입력)</h2>
+            </div>
+            <!-- Live Calculated Preview Badge -->
+            <div class="flex items-center gap-2 text-xs">
+              <span class="text-slate-400">예상 순이익:</span>
+              <span id="previewProfit" class="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">0원</span>
+              <span class="text-slate-400">마진:</span>
+              <span id="previewMargin" class="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">0.0%</span>
+            </div>
+          </div>
+
+          <form id="orderForm" onsubmit="handleOrderSubmit(event)" class="space-y-3">
+            <!-- Row 1: Core Product & Channel -->
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+              <div class="sm:col-span-3">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">주문일자</label>
+                <input type="date" id="orderDate" required class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+              </div>
+              <div class="sm:col-span-3">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">판매 채널</label>
+                <select id="orderChannel" required class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+                  <option value="쿠팡">쿠팡 (Coupang)</option>
+                  <option value="롯데온">롯데온 (LotteOn)</option>
+                  <option value="큐텐">큐텐 (Qoo10)</option>
+                  <option value="테무">테무 (Temu)</option>
+                  <option value="도매매">도매매 (B2B)</option>
+                  <option value="스마트스토어">스마트스토어</option>
+                  <option value="기타">기타 채널</option>
+                </select>
+              </div>
+              <div class="sm:col-span-6">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">상품명</label>
+                <input type="text" id="orderProduct" placeholder="예: 무선 블루투스 이어폰 케이스" required class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+              </div>
+            </div>
+
+            <!-- Row 2: Customer Info & Financials -->
+            <div class="grid grid-cols-2 sm:grid-cols-12 gap-2.5">
+              <div class="col-span-1 sm:col-span-3">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">고객명 (선택)</label>
+                <input type="text" id="orderCustomer" placeholder="홍길동" class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+              </div>
+              <div class="col-span-1 sm:col-span-3">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">고객 연락처</label>
+                <input type="text" id="orderContact" placeholder="010-0000-0000" class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+              </div>
+              <div class="col-span-1 sm:col-span-2">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">매입가 (원)</label>
+                <input type="number" id="orderBuyPrice" placeholder="0" min="0" required oninput="calcLivePreview()" class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-right font-medium">
+              </div>
+              <div class="col-span-1 sm:col-span-2">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">판매가 (원)</label>
+                <input type="number" id="orderSellPrice" placeholder="0" min="0" required oninput="calcLivePreview()" class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-right font-semibold text-slate-900">
+              </div>
+              <div class="col-span-2 sm:col-span-2">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">수량</label>
+                <input type="number" id="orderQuantity" value="1" min="1" required oninput="calcLivePreview()" class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-center">
+              </div>
+            </div>
+
+            <!-- Row 3: Status, CS Memo, and Submit -->
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+              <div class="sm:col-span-3">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">초기 배송 상태</label>
+                <select id="orderStatus" class="w-full px-2.5 py-1.5 text-xs bg-amber-50 text-amber-900 font-semibold border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all">
+                  <option value="결제완료">🟡 결제완료 (발주필요)</option>
+                  <option value="배송중">🚚 배송중</option>
+                  <option value="배송완료">🟢 배송완료</option>
+                  <option value="취소·환급">🔴 취소·환급</option>
+                </select>
+              </div>
+              <div class="sm:col-span-6">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1">CS / 발주 특이사항 메모</label>
+                <input type="text" id="orderMemo" placeholder="예: 통관고유부호 확인 완료, 사은품 증정" class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+              </div>
+              <div class="sm:col-span-3">
+                <button type="submit" class="w-full py-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5">
+                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                  <span>기록 추가 (Enter)</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <!-- Orders & Shipment List Table -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <!-- Table Header / Filters -->
+          <div class="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600"><i data-lucide="package" class="w-4 h-4"></i></span>
+              <h2 class="text-sm font-bold text-slate-900">주문 & 배송 관리 리스트</h2>
+              <span id="orderFilteredBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-medium">0건</span>
+            </div>
+
+            <!-- Controls: Search & CSV Export -->
+            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div class="relative flex-1 sm:w-48">
+                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
+                <input type="text" id="orderSearch" oninput="renderOrders()" placeholder="고객명, 상품명, 전화번호 검색" class="w-full pl-8 pr-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              </div>
+              <button onclick="exportOrdersCSV()" class="px-3 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors flex items-center gap-1">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                <span>엑셀(CSV) 다운로드</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Channel & Status Filter Tabs -->
+          <div class="px-4 py-2 bg-white border-b border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
+            <span class="text-slate-400 text-[11px] mr-1">채널:</span>
+            <button onclick="setChannelFilter('ALL')" class="channel-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-800 text-white" data-channel="ALL">전체</button>
+            <button onclick="setChannelFilter('쿠팡')" class="channel-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-100 text-slate-600 hover:bg-slate-200" data-channel="쿠팡">쿠팡</button>
+            <button onclick="setChannelFilter('롯데온')" class="channel-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-100 text-slate-600 hover:bg-slate-200" data-channel="롯데온">롯데온</button>
+            <button onclick="setChannelFilter('큐텐')" class="channel-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-100 text-slate-600 hover:bg-slate-200" data-channel="큐텐">큐텐</button>
+            <button onclick="setChannelFilter('테무')" class="channel-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-100 text-slate-600 hover:bg-slate-200" data-channel="테무">테무</button>
+            <button onclick="setChannelFilter('도매매')" class="channel-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-100 text-slate-600 hover:bg-slate-200" data-channel="도매매">도매매</button>
+
+            <span class="text-slate-300 mx-2">|</span>
+
+            <span class="text-slate-400 text-[11px] mr-1">배송상태:</span>
+            <button onclick="setStatusFilter('ALL')" class="status-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-800 text-white" data-status="ALL">전체</button>
+            <button onclick="setStatusFilter('결제완료')" class="status-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-amber-50 text-amber-700 hover:bg-amber-100" data-status="결제완료">🟡 발주필요</button>
+            <button onclick="setStatusFilter('배송중')" class="status-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-blue-50 text-blue-700 hover:bg-blue-100" data-status="배송중">🚚 배송중</button>
+            <button onclick="setStatusFilter('배송완료')" class="status-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100" data-status="배송완료">🟢 완료</button>
+          </div>
+
+          <!-- Table Container -->
+          <div class="overflow-x-auto max-h-[460px]">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead class="bg-slate-50 text-slate-500 font-semibold sticky top-0 z-10 border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">일자/채널</th>
+                  <th class="py-2.5 px-3">상품명</th>
+                  <th class="py-2.5 px-3">고객 정보</th>
+                  <th class="py-2.5 px-3 text-right">매입 / 판매가</th>
+                  <th class="py-2.5 px-3 text-right">순이익 (마진율)</th>
+                  <th class="py-2.5 px-3 text-center">배송 상태</th>
+                  <th class="py-2.5 px-3">CS 메모</th>
+                  <th class="py-2.5 px-2 text-center">관리</th>
+                </tr>
+              </thead>
+              <tbody id="ordersTableBody" class="divide-y divide-slate-100 text-slate-700">
+                <!-- Dynamically Rendered -->
+              </tbody>
+            </table>
+          </div>
+          <div id="ordersEmptyState" class="p-8 text-center text-slate-400 text-xs hidden">
+            <i data-lucide="inbox" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i>
+            <p>등록된 주문 내역이 없습니다. 상단 폼에서 주문을 등록해 보세요.</p>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Right 1 Col: Sourcing & Operations (To-Do & Memos) -->
+      <div class="space-y-6">
+
+        <!-- 2. Sourcing & Product Listing Status -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600"><i data-lucide="compass" class="w-4 h-4"></i></span>
+              <h2 class="text-sm font-bold text-slate-900">소싱 & 상품 파이프라인</h2>
+            </div>
+            <span id="sourcingCountBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">0개</span>
+          </div>
+
+          <!-- Sourcing Quick Input -->
+          <form id="sourcingForm" onsubmit="handleSourcingSubmit(event)" class="space-y-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <div class="grid grid-cols-12 gap-2">
+              <div class="col-span-7">
+                <input type="text" id="sourcingName" placeholder="발굴 상품명 (예: 캠핑용 접이식 테이블)" required class="w-full px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div class="col-span-5">
+                <select id="sourcingCountry" class="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="중국">🇨🇳 중국 (1688/타오)</option>
+                  <option value="일본">🇯🇵 일본 (라쿠텐/아마존)</option>
+                  <option value="국내">🇰🇷 국내 도매</option>
+                  <option value="미국">🇺🇸 미국</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-12 gap-2">
+              <div class="col-span-7">
+                <input type="url" id="sourcingUrl" placeholder="소싱 URL (https://...)" class="w-full px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div class="col-span-5">
+                <input type="number" id="sourcingPrice" placeholder="예상 매입가(원)" min="0" class="w-full px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-right">
+              </div>
+            </div>
+            <div class="flex items-center justify-between gap-2 pt-1">
+              <select id="sourcingStatus" class="flex-1 px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold">
+                <option value="아이디어">⚪ 아이디어 (검토중)</option>
+                <option value="소싱중">🟡 소싱/샘플링중</option>
+                <option value="판매중">🟢 판매중 (등록완료)</option>
+              </select>
+              <button type="submit" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>소싱 추가</span>
+              </button>
+            </div>
+          </form>
+
+          <!-- Sourcing Filter Buttons -->
+          <div class="flex items-center gap-1 text-[11px] border-b border-slate-100 pb-2">
+            <button onclick="setSourcingFilter('ALL')" class="sourcing-tab-btn px-2 py-0.5 rounded font-semibold bg-slate-800 text-white" data-tab="ALL">전체</button>
+            <button onclick="setSourcingFilter('판매중')" class="sourcing-tab-btn px-2 py-0.5 rounded text-slate-600 hover:bg-slate-100" data-tab="판매중">🟢 판매중</button>
+            <button onclick="setSourcingFilter('소싱중')" class="sourcing-tab-btn px-2 py-0.5 rounded text-slate-600 hover:bg-slate-100" data-tab="소싱중">🟡 소싱중</button>
+            <button onclick="setSourcingFilter('아이디어')" class="sourcing-tab-btn px-2 py-0.5 rounded text-slate-600 hover:bg-slate-100" data-tab="아이디어">⚪ 아이디어</button>
+          </div>
+
+          <!-- Sourcing Item List -->
+          <div id="sourcingList" class="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+            <!-- Dynamically Rendered -->
+          </div>
+        </section>
+
+        <!-- 5. Today's To-Do List (아침 업무 체크리스트) -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600"><i data-lucide="check-square" class="w-4 h-4"></i></span>
+              <h2 class="text-sm font-bold text-slate-900">오늘의 업무 체크리스트</h2>
+            </div>
+            <span id="todoStats" class="text-xs text-slate-400 font-medium">0/0 완료</span>
+          </div>
+
+          <!-- To-Do Input -->
+          <form onsubmit="handleAddTodo(event)" class="flex items-center gap-2">
+            <input type="text" id="todoInput" placeholder="오늘 꼭 처리할 업무 추가 (Enter)" class="flex-1 px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white">
+            <button type="submit" class="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+            </button>
+          </form>
+
+          <!-- To-Do List Items -->
+          <div id="todoItemsList" class="space-y-1.5 max-h-[200px] overflow-y-auto">
+            <!-- Dynamically Rendered -->
+          </div>
+        </section>
+
+        <!-- Scratchpad & Marketing Notes -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 rounded-lg bg-purple-50 text-purple-600"><i data-lucide="lightbulb" class="w-4 h-4"></i></span>
+              <h2 class="text-sm font-bold text-slate-900">마케팅 아이디어 & 단가 메모</h2>
+            </div>
+            <span class="text-[10px] text-slate-400">자동 저장됨</span>
+          </div>
+          <textarea id="quickMemo" oninput="saveQuickMemo()" rows="4" placeholder="떠오르는 키워드, 소싱 단가 환율 계산, 블로그 포스팅 아이디어 등을 자유롭게 적어두세요." class="w-full p-2.5 text-xs bg-purple-50/40 border border-purple-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400 text-slate-700 resize-none font-mono"></textarea>
+        </section>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-auto py-4 text-center text-xs text-slate-400 border-t border-slate-200 bg-white">
+    <p>1인 온라인 쇼핑몰 운영 통합 관제탑 &bull; 데이터는 브라우저에 안전하게 보관됩니다.</p>
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    // State Store
+    const STORAGE_KEY = 'seller_cockpit_state_v1';
+    let appState = {
+      orders: [],
+      sourcings: [],
+      todos: [],
+      quickMemo: ''
+    };
+
+    let activeChannelFilter = 'ALL';
+    let activeStatusFilter = 'ALL';
+    let activeSourcingTab = 'ALL';
+
+    // Initialize App
+    document.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      initClock();
+      setDefaultDate();
+      renderAll();
+      lucide.createIcons();
+    });
+
+    function setDefaultDate() {
+      const today = new Date().toISOString().split('T')[0];
+      const dateEl = document.getElementById('orderDate');
+      if (dateEl) dateEl.value = today;
+    }
+
+    function initClock() {
+      const clockEl = document.getElementById('liveClock');
+      function update() {
+        const now = new Date();
+        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+        clockEl.textContent = now.toLocaleDateString('ko-KR', options);
+      }
+      update();
+      setInterval(update, 1000);
+    }
+
+    // LocalStorage Management
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          appState = JSON.parse(saved);
+        } catch (e) {
+          console.error("Failed to parse saved state", e);
+        }
+      }
+      if (!appState.orders) appState.orders = [];
+      if (!appState.sourcings) appState.sourcings = [];
+      if (!appState.todos) appState.todos = [];
+      if (!appState.quickMemo) appState.quickMemo = '';
+      
+      const memoEl = document.getElementById('quickMemo');
+      if (memoEl) memoEl.value = appState.quickMemo;
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      renderKPIs();
+    }
+
+    function saveQuickMemo() {
+      appState.quickMemo = document.getElementById('quickMemo').value;
+      saveState();
+    }
+
+    // Live Profit & Margin Preview
+    function calcLivePreview() {
+      const buy = parseFloat(document.getElementById('orderBuyPrice').value) || 0;
+      const sell = parseFloat(document.getElementById('orderSellPrice').value) || 0;
+      const qty = parseInt(document.getElementById('orderQuantity').value) || 1;
+
+      const profit = (sell - buy) * qty;
+      const totalSell = sell * qty;
+      const margin = totalSell > 0 ? (profit / totalSell) * 100 : 0;
+
+      const pProfit = document.getElementById('previewProfit');
+      const pMargin = document.getElementById('previewMargin');
+
+      pProfit.textContent = profit.toLocaleString() + '원';
+      pMargin.textContent = margin.toFixed(1) + '%';
+
+      if (profit < 0) {
+        pProfit.className = 'font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200';
+      } else {
+        pProfit.className = 'font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200';
+      }
+    }
+
+    // Orders Management
+    function handleOrderSubmit(e) {
+      e.preventDefault();
+      const date = document.getElementById('orderDate').value;
+      const channel = document.getElementById('orderChannel').value;
+      const product = document.getElementById('orderProduct').value.trim();
+      const customer = document.getElementById('orderCustomer').value.trim();
+      const contact = document.getElementById('orderContact').value.trim();
+      const buyPrice = parseFloat(document.getElementById('orderBuyPrice').value) || 0;
+      const sellPrice = parseFloat(document.getElementById('orderSellPrice').value) || 0;
+      const quantity = parseInt(document.getElementById('orderQuantity').value) || 1;
+      const status = document.getElementById('orderStatus').value;
+      const memo = document.getElementById('orderMemo').value.trim();
+
+      const profit = (sellPrice - buyPrice) * quantity;
+      const totalSell = sellPrice * quantity;
+      const marginRate = totalSell > 0 ? (profit / totalSell) * 100 : 0;
+
+      const newOrder = {
+        id: 'ord_' + Date.now(),
+        date,
+        channel,
+        product,
+        customer,
+        contact,
+        buyPrice,
+        sellPrice,
+        quantity,
+        profit,
+        marginRate,
+        status,
+        memo,
+        createdAt: Date.now()
+      };
+
+      appState.orders.unshift(newOrder);
+      saveState();
+
+      // Reset form partially
+      document.getElementById('orderProduct').value = '';
+      document.getElementById('orderCustomer').value = '';
+      document.getElementById('orderContact').value = '';
+      document.getElementById('orderBuyPrice').value = '';
+      document.getElementById('orderSellPrice').value = '';
+      document.getElementById('orderQuantity').value = '1';
+      document.getElementById('orderMemo').value = '';
+      calcLivePreview();
+
+      renderOrders();
+      lucide.createIcons();
+    }
+
+    function updateOrderStatus(id, newStatus) {
+      const order = appState.orders.find(o => o.id === id);
+      if (order) {
+        order.status = newStatus;
+        saveState();
+        renderOrders();
+        lucide.createIcons();
+      }
+    }
+
+    function deleteOrder(id) {
+      if (confirm('이 주문 기록을 삭제하시겠습니까?')) {
+        appState.orders = appState.orders.filter(o => o.id !== id);
+        saveState();
+        renderOrders();
+        lucide.createIcons();
+      }
+    }
+
+    function setChannelFilter(channel) {
+      activeChannelFilter = channel;
+      document.querySelectorAll('.channel-filter-btn').forEach(btn => {
+        if (btn.dataset.channel === channel) {
+          btn.className = 'channel-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-800 text-white';
+        } else {
+          btn.className = 'channel-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-100 text-slate-600 hover:bg-slate-200';
+        }
+      });
+      renderOrders();
+    }
+
+    function setStatusFilter(status) {
+      activeStatusFilter = status;
+      document.querySelectorAll('.status-filter-btn').forEach(btn => {
+        if (btn.dataset.status === status) {
+          btn.className = 'status-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-800 text-white';
+        } else {
+          btn.className = 'status-filter-btn px-2 py-0.5 rounded-md font-medium text-xs bg-slate-100 text-slate-600 hover:bg-slate-200';
+        }
+      });
+      renderOrders();
+    }
+
+    function renderOrders() {
+      const tbody = document.getElementById('ordersTableBody');
+      const emptyState = document.getElementById('ordersEmptyState');
+      const query = (document.getElementById('orderSearch').value || '').toLowerCase().trim();
+
+      let filtered = appState.orders.filter(o => {
+        if (activeChannelFilter !== 'ALL' && o.channel !== activeChannelFilter) return false;
+        if (activeStatusFilter !== 'ALL' && o.status !== activeStatusFilter) return false;
+        if (query) {
+          const matchP = o.product.toLowerCase().includes(query);
+          const matchC = (o.customer || '').toLowerCase().includes(query);
+          const matchPh = (o.contact || '').toLowerCase().includes(query);
+          if (!matchP && !matchC && !matchPh) return false;
+        }
+        return true;
+      });
+
+      document.getElementById('orderFilteredBadge').textContent = `${filtered.length}건`;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+
+      tbody.innerHTML = filtered.map(o => {
+        const channelBadgeColor = {
+          '쿠팡': 'bg-red-50 text-red-700 border-red-200',
+          '롯데온': 'bg-rose-50 text-rose-700 border-rose-200',
+          '큐텐': 'bg-blue-50 text-blue-700 border-blue-200',
+          '테무': 'bg-orange-50 text-orange-700 border-orange-200',
+          '도매매': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          '스마트스토어': 'bg-green-50 text-green-700 border-green-200',
+          '기타': 'bg-slate-50 text-slate-700 border-slate-200'
+        }[o.channel] || 'bg-slate-50 text-slate-700 border-slate-200';
+
+        const statusStyle = {
+          '결제완료': 'bg-amber-50 text-amber-800 border-amber-200',
+          '배송중': 'bg-blue-50 text-blue-800 border-blue-200',
+          '배송완료': 'bg-emerald-50 text-emerald-800 border-emerald-200',
+          '취소·환급': 'bg-rose-50 text-rose-800 border-rose-200'
+        }[o.status] || 'bg-slate-50 text-slate-800 border-slate-200';
+
+        return `
+          <tr class="hover:bg-slate-50/80 transition-colors">
+            <td class="py-2.5 px-3">
+              <div class="text-[11px] text-slate-500 font-mono">${escapeHtml(o.date)}</div>
+              <span class="inline-block mt-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded border ${channelBadgeColor}">${escapeHtml(o.channel)}</span>
+            </td>
+            <td class="py-2.5 px-3 font-semibold text-slate-900 max-w-[200px] truncate" title="${escapeHtml(o.product)}">
+              ${escapeHtml(o.product)}
+            </td>
+            <td class="py-2.5 px-3">
+              <div class="font-medium text-slate-900">${escapeHtml(o.customer || '미기재')}</div>
+              <div class="text-[11px] text-slate-400 font-mono">${escapeHtml(o.contact || '-')}</div>
+            </td>
+            <td class="py-2.5 px-3 text-right">
+              <div class="font-semibold text-slate-900">${(o.sellPrice * o.quantity).toLocaleString()}원</div>
+              <div class="text-[11px] text-slate-400 font-mono">${o.buyPrice.toLocaleString()}원 × ${o.quantity}개</div>
+            </td>
+            <td class="py-2.5 px-3 text-right">
+              <div class="font-bold ${o.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${o.profit.toLocaleString()}원</div>
+              <div class="text-[10px] font-medium text-slate-400">마진 ${o.marginRate.toFixed(1)}%</div>
+            </td>
+            <td class="py-2.5 px-3 text-center">
+              <select onchange="updateOrderStatus('${o.id}', this.value)" class="text-[11px] font-bold py-1 px-2 rounded-lg border focus:outline-none transition-all cursor-pointer ${statusStyle}">
+                <option value="결제완료" ${o.status === '결제완료' ? 'selected' : ''}>🟡 발주필요</option>
+                <option value="배송중" ${o.status === '배송중' ? 'selected' : ''}>🚚 배송중</option>
+                <option value="배송완료" ${o.status === '배송완료' ? 'selected' : ''}>🟢 배송완료</option>
+                <option value="취소·환급" ${o.status === '취소·환급' ? 'selected' : ''}>🔴 취소·환급</option>
+              </select>
+            </td>
+            <td class="py-2.5 px-3 text-slate-500 max-w-[140px] truncate text-[11px]" title="${escapeHtml(o.memo || '')}">
+              ${escapeHtml(o.memo || '-')}
+            </td>
+            <td class="py-2.5 px-2 text-center">
+              <button onclick="deleteOrder('${o.id}')" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors" title="삭제">
+                <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // Sourcing Management
+    function handleSourcingSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('sourcingName').value.trim();
+      const country = document.getElementById('sourcingCountry').value;
+      const url = document.getElementById('sourcingUrl').value.trim();
+      const price = parseFloat(document.getElementById('sourcingPrice').value) || 0;
+      const status = document.getElementById('sourcingStatus').value;
+
+      const newItem = {
+        id: 'src_' + Date.now(),
+        name,
+        country,
+        url,
+        price,
+        status,
+        createdAt: Date.now()
+      };
+
+      appState.sourcings.unshift(newItem);
+      saveState();
+
+      // Reset
+      document.getElementById('sourcingName').value = '';
+      document.getElementById('sourcingUrl').value = '';
+      document.getElementById('sourcingPrice').value = '';
+
+      renderSourcings();
+      lucide.createIcons();
+    }
+
+    function setSourcingFilter(tab) {
+      activeSourcingTab = tab;
+      document.querySelectorAll('.sourcing-tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tab) {
+          btn.className = 'sourcing-tab-btn px-2 py-0.5 rounded font-semibold bg-slate-800 text-white';
+        } else {
+          btn.className = 'sourcing-tab-btn px-2 py-0.5 rounded text-slate-600 hover:bg-slate-100';
+        }
+      });
+      renderSourcings();
+    }
+
+    function updateSourcingStatus(id, newStatus) {
+      const item = appState.sourcings.find(s => s.id === id);
+      if (item) {
+        item.status = newStatus;
+        saveState();
+        renderSourcings();
+        lucide.createIcons();
+      }
+    }
+
+    function deleteSourcing(id) {
+      if (confirm('이 소싱 상품을 삭제하시겠습니까?')) {
+        appState.sourcings = appState.sourcings.filter(s => s.id !== id);
+        saveState();
+        renderSourcings();
+        lucide.createIcons();
+      }
+    }
+
+    // Connect Sourcing item to Order Form (Double Entry Killer)
+    function importToOrderForm(id) {
+      const item = appState.sourcings.find(s => s.id === id);
+      if (!item) return;
+
+      document.getElementById('orderProduct').value = item.name;
+      if (item.price > 0) {
+        document.getElementById('orderBuyPrice').value = item.price;
+      }
+      calcLivePreview();
+
+      // Scroll to Order Form smoothly and focus sell price
+      document.getElementById('orderInputSection').scrollIntoView({ behavior: 'smooth' });
+      const sellPriceEl = document.getElementById('orderSellPrice');
+      sellPriceEl.focus();
+      sellPriceEl.select();
+    }
+
+    function renderSourcings() {
+      const container = document.getElementById('sourcingList');
+      const badge = document.getElementById('sourcingCountBadge');
+
+      let filtered = appState.sourcings.filter(s => {
+        if (activeSourcingTab !== 'ALL' && s.status !== activeSourcingTab) return false;
+        return true;
+      });
+
+      badge.textContent = `${filtered.length}개`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="py-6 text-center text-slate-400 text-xs">
+            등록된 소싱 상품이 없습니다.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(s => {
+        const badgeColor = {
+          '판매중': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          '소싱중': 'bg-amber-50 text-amber-700 border-amber-200',
+          '아이디어': 'bg-slate-100 text-slate-600 border-slate-200'
+        }[s.status] || 'bg-slate-100 text-slate-600 border-slate-200';
+
+        return `
+          <div class="p-2.5 bg-slate-50/70 hover:bg-slate-100/70 rounded-xl border border-slate-200 transition-all text-xs space-y-1.5">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="font-bold text-slate-900">${escapeHtml(s.name)}</div>
+                <div class="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                  <span>${escapeHtml(s.country)}</span>
+                  ${s.price > 0 ? `<span class="font-mono">예상 매입: ${s.price.toLocaleString()}원</span>` : ''}
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                ${s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" class="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="소싱처 열기"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></a>` : ''}
+                <button onclick="deleteSourcing('${s.id}')" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded" title="삭제"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 text-[11px]">
+              <select onchange="updateSourcingStatus('${s.id}', this.value)" class="py-0.5 px-2 font-semibold rounded border focus:outline-none cursor-pointer ${badgeColor}">
+                <option value="아이디어" ${s.status === '아이디어' ? 'selected' : ''}>⚪ 아이디어</option>
+                <option value="소싱중" ${s.status === '소싱중' ? 'selected' : ''}>🟡 소싱중</option>
+                <option value="판매중" ${s.status === '판매중' ? 'selected' : ''}>🟢 판매중</option>
+              </select>
+
+              <button onclick="importToOrderForm('${s.id}')" class="px-2 py-0.5 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 hover:border-indigo-300 font-medium rounded shadow-2xs transition-all flex items-center gap-1">
+                <i data-lucide="arrow-left" class="w-3 h-3"></i>
+                <span>판매 등록으로 가져오기</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // Today's To-Do List Management
+    function handleAddTodo(e) {
+      e.preventDefault();
+      const input = document.getElementById('todoInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      appState.todos.push({
+        id: 'todo_' + Date.now(),
+        text,
+        done: false,
+        createdAt: Date.now()
+      });
+      saveState();
+      input.value = '';
+      renderTodos();
+      lucide.createIcons();
+    }
+
+    function toggleTodo(id) {
+      const item = appState.todos.find(t => t.id === id);
+      if (item) {
+        item.done = !item.done;
+        saveState();
+        renderTodos();
+        lucide.createIcons();
+      }
+    }
+
+    function deleteTodo(id) {
+      appState.todos = appState.todos.filter(t => t.id !== id);
+      saveState();
+      renderTodos();
+      lucide.createIcons();
+    }
+
+    function renderTodos() {
+      const container = document.getElementById('todoItemsList');
+      const stats = document.getElementById('todoStats');
+      const total = appState.todos.length;
+      const done = appState.todos.filter(t => t.done).length;
+
+      stats.textContent = `${done}/${total} 완료`;
+
+      if (total === 0) {
+        container.innerHTML = `
+          <div class="py-4 text-center text-slate-400 text-xs">
+            오늘 할 일이 없습니다. 업무를 추가해 보세요!
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = appState.todos.map(t => `
+        <div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors text-xs group">
+          <label class="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+            <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTodo('${t.id}')" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+            <span class="${t.done ? 'line-through text-slate-400 font-normal' : 'text-slate-800 font-medium'} truncate">${escapeHtml(t.text)}</span>
+          </label>
+          <button onclick="deleteTodo('${t.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-600 rounded transition-all">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    // Top Stats & KPIs Calculation
+    function renderKPIs() {
+      const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+      
+      const thisMonthOrders = appState.orders.filter(o => (o.date || '').startsWith(currentMonth));
+      const validOrders = thisMonthOrders.filter(o => o.status !== '취소·환급');
+
+      const totalRevenue = validOrders.reduce((sum, o) => sum + (o.sellPrice * o.quantity), 0);
+      const totalProfit = validOrders.reduce((sum, o) => sum + o.profit, 0);
+      const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+      // Pending shipment orders (across all dates)
+      const pendingOrders = appState.orders.filter(o => o.status === '결제완료');
+
+      document.getElementById('statRevenue').textContent = totalRevenue.toLocaleString() + '원';
+      document.getElementById('statProfit').textContent = totalProfit.toLocaleString() + '원';
+      document.getElementById('statMargin').textContent = avgMargin.toFixed(1) + '%';
+      document.getElementById('statMarginBar').style.width = Math.min(100, Math.max(0, avgMargin)) + '%';
+      document.getElementById('statOrderCount').textContent = validOrders.length;
+      
+      const pendingEl = document.getElementById('statPendingOrders');
+      pendingEl.textContent = pendingOrders.length + '건';
+      if (pendingOrders.length > 0) {
+        document.getElementById('statPendingHelp').textContent = '지금 주문 확인 후 발주를 넣어주세요!';
+      } else {
+        document.getElementById('statPendingHelp').textContent = '미발주 주문이 없습니다. 완벽합니다!';
+      }
+    }
+
+    function renderAll() {
+      renderKPIs();
+      renderOrders();
+      renderSourcings();
+      renderTodos();
+    }
+
+    // CSV Exporter (With UTF-8 BOM for Korean Excel)
+    function exportOrdersCSV() {
+      if (appState.orders.length === 0) {
+        alert('내보낼 주문 데이터가 없습니다.');
+        return;
+      }
+
+      const headers = ['주문일자', '채널', '상품명', '고객명', '연락처', '매입가', '판매가', '수량', '순이익', '마진율(%)', '배송상태', 'CS메모'];
+      const rows = appState.orders.map(o => [
+        `"${o.date}"`,
+        `"${o.channel}"`,
+        `"${(o.product || '').replace(/"/g, '""')}"`,
+        `"${(o.customer || '').replace(/"/g, '""')}"`,
+        `"${(o.contact || '').replace(/"/g, '""')}"`,
+        o.buyPrice,
+        o.sellPrice,
+        o.quantity,
+        o.profit,
+        o.marginRate.toFixed(1),
+        `"${o.status}"`,
+        `"${(o.memo || '').replace(/"/g, '""')}"`
+      ]);
+
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `주문판매관리_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Backup & Restore
+    function backupData() {
+      const jsonStr = JSON.stringify(appState, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `셀러콕핏_백업_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function restoreData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const restored = JSON.parse(e.target.result);
+          if (restored && Array.isArray(restored.orders)) {
+            appState = restored;
+            saveState();
+            renderAll();
+            alert('데이터가 성공적으로 복원되었습니다!');
+          } else {
+            alert('유효하지 않은 백업 파일 형식입니다.');
+          }
+        } catch (err) {
+          alert('파일을 읽는 중 오류가 발생했습니다.');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    function resetAllData() {
+      if (confirm('정말 모든 데이터를 초기화하시겠습니까? (이 작업은 되돌릴 수 없습니다.)')) {
+        appState = {
+          orders: [],
+          sourcings: [],
+          todos: [],
+          quickMemo: ''
+        };
+        saveState();
+        document.getElementById('quickMemo').value = '';
+        renderAll();
+      }
+    }
+
+    // Load Sample Data for demonstration
+    function loadSampleData() {
+      const today = new Date().toISOString().split('T')[0];
+      appState = {
+        orders: [
+          {
+            id: 'ord_1',
+            date: today,
+            channel: '쿠팡',
+            product: '맥세이프 차량용 고속 충전기',
+            customer: '김민준',
+            contact: '010-1234-5678',
+            buyPrice: 8500,
+            sellPrice: 24900,
+            quantity: 1,
+            profit: 16400,
+            marginRate: 65.9,
+            status: '결제완료',
+            memo: '차량 송풍구 거치대 포함 확인',
+            createdAt: Date.now() - 3600000
+          },
+          {
+            id: 'ord_2',
+            date: today,
+            channel: '큐텐',
+            product: '초경량 캠핑 폴딩 체어',
+            customer: 'Tanaka Sato',
+            contact: '+81-90-1234-5678',
+            buyPrice: 12000,
+            sellPrice: 32000,
+            quantity: 2,
+            profit: 40000,
+            marginRate: 62.5,
+            status: '결제완료',
+            memo: '해외배송 영문 주소 재확인 완료',
+            createdAt: Date.now() - 7200000
+          },
+          {
+            id: 'ord_3',
+            date: today,
+            channel: '롯데온',
+            product: '세라믹 세척 브러쉬 세트',
+            customer: '이서연',
+            contact: '010-9876-5432',
+            buyPrice: 3200,
+            sellPrice: 11900,
+            quantity: 1,
+            profit: 8700,
+            marginRate: 73.1,
+            status: '배송중',
+            memo: '우체국 택배 발송완료',
+            createdAt: Date.now() - 86400000
+          },
+          {
+            id: 'ord_4',
+            date: today,
+            channel: '테무',
+            product: '스마트 LED 무드등',
+            customer: '박지훈',
+            contact: '010-5555-4444',
+            buyPrice: 4800,
+            sellPrice: 14500,
+            quantity: 1,
+            profit: 9700,
+            marginRate: 66.9,
+            status: '배송완료',
+            memo: '포토리뷰 작성 완료',
+            createdAt: Date.now() - 172800000
+          }
+        ],
+        sourcings: [
+          {
+            id: 'src_1',
+            name: '맥세이프 차량용 고속 충전기',
+            country: '중국',
+            url: 'https://www.1688.com',
+            price: 8500,
+            status: '판매중',
+            createdAt: Date.now()
+          },
+          {
+            id: 'src_2',
+            name: '초경량 캠핑 폴딩 체어',
+            country: '중국',
+            url: 'https://www.1688.com',
+            price: 12000,
+            status: '판매중',
+            createdAt: Date.now()
+          },
+          {
+            id: 'src_3',
+            name: '자동 센서 분리수거 휴지통 15L',
+            country: '국내',
+            url: 'https://domemae.com',
+            price: 14500,
+            status: '소싱중',
+            createdAt: Date.now()
+          },
+          {
+            id: 'src_4',
+            name: '휴대용 미니 에스프레소 머신',
+            country: '일본',
+            url: 'https://rakuten.co.jp',
+            price: 28000,
+            status: '아이디어',
+            createdAt: Date.now()
+          }
+        ],
+        todos: [
+          { id: 'todo_1', text: '아침 신규 주문 2건 1688/도매매 발주 넣기', done: false, createdAt: Date.now() },
+          { id: 'todo_2', text: '쿠팡 윙 배송 지연 패널티 점검 및 송장 입력', done: false, createdAt: Date.now() },
+          { id: 'todo_3', text: '세라믹 브러쉬 세트 포토리뷰 답변 작성', done: true, createdAt: Date.now() },
+          { id: 'todo_4', text: '주말 캠핑 기획전 인스타그램 릴스 1편 제작', done: false, createdAt: Date.now() }
+        ],
+        quickMemo: '[오늘의 환율/단가]\n- 1688 위안화 환율: 195원 기준\n- 기본 배송비: 3,000원 책정 (마진율 60% 이상 유지 목표)\n\n[블로그/키워드 아이디어]\n- 자취생 꿀템 시리즈: 센서 휴지통 vs 일반 페달 비교기\n- 캠핑 폴딩체어 감성샷 인스타 릴스 음원: 유행 BGM 매칭'
+      };
+
+      saveState();
+      document.getElementById('quickMemo').value = appState.quickMemo;
+      renderAll();
+      lucide.createIcons();
+    }
+
+    // Helper: HTML Escaping
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>

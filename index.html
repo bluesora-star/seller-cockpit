@@ -254,7 +254,7 @@
               </div>
             </div>
 
-            <!-- Row 3: Status, CS Memo, and Submit -->
+            <!-- Row 3: Status, Tracking Number, CS Memo, and Submit -->
             <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
               <div class="sm:col-span-3">
                 <label class="block text-[11px] font-medium text-slate-500 mb-1">초기 배송 상태</label>
@@ -265,14 +265,21 @@
                   <option value="취소·환급">🔴 취소·환급</option>
                 </select>
               </div>
-              <div class="sm:col-span-6">
+              <div class="sm:col-span-3">
+                <label class="block text-[11px] font-medium text-slate-500 mb-1 flex items-center gap-1">
+                  <i data-lucide="truck" class="w-3 h-3 text-indigo-500"></i>
+                  <span>택배사 / 송장번호 (선택)</span>
+                </label>
+                <input type="text" id="orderTracking" placeholder="예: CJ대한통운 1234567890" class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-mono">
+              </div>
+              <div class="sm:col-span-4">
                 <label class="block text-[11px] font-medium text-slate-500 mb-1">CS / 발주 특이사항 메모</label>
                 <input type="text" id="orderMemo" placeholder="예: 통관고유부호 확인 완료, 사은품 증정" class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
               </div>
-              <div class="sm:col-span-3">
-                <button type="submit" class="w-full py-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5">
+              <div class="sm:col-span-2">
+                <button type="submit" class="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1">
                   <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                  <span>기록 추가 (Enter)</span>
+                  <span>기록 추가</span>
                 </button>
               </div>
             </div>
@@ -332,6 +339,7 @@
                   <th class="py-2.5 px-3 text-right">매입 / 판매가</th>
                   <th class="py-2.5 px-3 text-right">순이익 (마진율)</th>
                   <th class="py-2.5 px-3 text-center">배송 상태</th>
+                  <th class="py-2.5 px-3">택배 / 송장번호</th>
                   <th class="py-2.5 px-3">CS 메모</th>
                   <th class="py-2.5 px-2 text-center">관리</th>
                 </tr>
@@ -565,6 +573,7 @@
       const sellPrice = parseFloat(document.getElementById('orderSellPrice').value) || 0;
       const quantity = parseInt(document.getElementById('orderQuantity').value) || 1;
       const status = document.getElementById('orderStatus').value;
+      const tracking = document.getElementById('orderTracking').value.trim();
       const memo = document.getElementById('orderMemo').value.trim();
 
       const profit = (sellPrice - buyPrice) * quantity;
@@ -584,6 +593,7 @@
         profit,
         marginRate,
         status,
+        tracking,
         memo,
         createdAt: Date.now()
       };
@@ -598,6 +608,7 @@
       document.getElementById('orderBuyPrice').value = '';
       document.getElementById('orderSellPrice').value = '';
       document.getElementById('orderQuantity').value = '1';
+      document.getElementById('orderTracking').value = '';
       document.getElementById('orderMemo').value = '';
       calcLivePreview();
 
@@ -613,6 +624,42 @@
         renderOrders();
         lucide.createIcons();
       }
+    }
+
+    function updateOrderTracking(id, newTracking) {
+      const order = appState.orders.find(o => o.id === id);
+      if (order) {
+        order.tracking = newTracking.trim();
+        // 송장번호가 입력되었을 때 아직 '결제완료(발주필요)' 상태라면 '배송중'으로 자동 변경
+        if (order.status === '결제완료' && order.tracking) {
+          order.status = '배송중';
+        }
+        saveState();
+        renderOrders();
+        lucide.createIcons();
+      }
+    }
+
+    function copyToClipboard(text, btnEl) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showCopySuccess(btnEl);
+        }).catch(() => {
+          prompt('송장번호를 복사하세요 (Ctrl+C):', text);
+        });
+      } else {
+        prompt('송장번호를 복사하세요 (Ctrl+C):', text);
+      }
+    }
+
+    function showCopySuccess(btnEl) {
+      const originalHtml = btnEl.innerHTML;
+      btnEl.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i>';
+      lucide.createIcons();
+      setTimeout(() => {
+        btnEl.innerHTML = originalHtml;
+        lucide.createIcons();
+      }, 1200);
     }
 
     function deleteOrder(id) {
@@ -660,7 +707,8 @@
           const matchP = o.product.toLowerCase().includes(query);
           const matchC = (o.customer || '').toLowerCase().includes(query);
           const matchPh = (o.contact || '').toLowerCase().includes(query);
-          if (!matchP && !matchC && !matchPh) return false;
+          const matchTrk = (o.tracking || '').toLowerCase().includes(query);
+          if (!matchP && !matchC && !matchPh && !matchTrk) return false;
         }
         return true;
       });
@@ -720,6 +768,20 @@
                 <option value="배송완료" ${o.status === '배송완료' ? 'selected' : ''}>🟢 배송완료</option>
                 <option value="취소·환급" ${o.status === '취소·환급' ? 'selected' : ''}>🔴 취소·환급</option>
               </select>
+            </td>
+            <td class="py-2.5 px-3">
+              <div class="flex items-center gap-1">
+                <input type="text" value="${escapeHtml(o.tracking || '')}" 
+                  placeholder="+ 송장 입력" 
+                  title="택배사 및 송장번호 (입력 후 다른 곳 클릭 시 자동저장)"
+                  onchange="updateOrderTracking('${o.id}', this.value)" 
+                  class="w-32 px-2 py-1 text-[11px] bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-slate-800 transition-colors">
+                ${o.tracking ? `
+                  <button onclick="copyToClipboard('${escapeHtml(o.tracking)}', this)" class="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="송장번호 복사">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                  </button>
+                ` : ''}
+              </div>
             </td>
             <td class="py-2.5 px-3 text-slate-500 max-w-[140px] truncate text-[11px]" title="${escapeHtml(o.memo || '')}">
               ${escapeHtml(o.memo || '-')}
@@ -989,7 +1051,7 @@
         return;
       }
 
-      const headers = ['주문일자', '채널', '상품명', '고객명', '연락처', '매입가', '판매가', '수량', '순이익', '마진율(%)', '배송상태', 'CS메모'];
+      const headers = ['주문일자', '채널', '상품명', '고객명', '연락처', '매입가', '판매가', '수량', '순이익', '마진율(%)', '배송상태', '택배/송장번호', 'CS메모'];
       const rows = appState.orders.map(o => [
         `"${o.date}"`,
         `"${o.channel}"`,
@@ -1002,6 +1064,7 @@
         o.profit,
         o.marginRate.toFixed(1),
         `"${o.status}"`,
+        `"${(o.tracking || '').replace(/"/g, '""')}"`,
         `"${(o.memo || '').replace(/"/g, '""')}"`
       ]);
 
@@ -1085,6 +1148,7 @@
             profit: 16400,
             marginRate: 65.9,
             status: '결제완료',
+            tracking: '',
             memo: '차량 송풍구 거치대 포함 확인',
             createdAt: Date.now() - 3600000
           },
@@ -1101,6 +1165,7 @@
             profit: 40000,
             marginRate: 62.5,
             status: '결제완료',
+            tracking: '',
             memo: '해외배송 영문 주소 재확인 완료',
             createdAt: Date.now() - 7200000
           },
@@ -1117,6 +1182,7 @@
             profit: 8700,
             marginRate: 73.1,
             status: '배송중',
+            tracking: '우체국 6842109531',
             memo: '우체국 택배 발송완료',
             createdAt: Date.now() - 86400000
           },
@@ -1133,6 +1199,7 @@
             profit: 9700,
             marginRate: 66.9,
             status: '배송완료',
+            tracking: 'CJ대한통운 5892341076',
             memo: '포토리뷰 작성 완료',
             createdAt: Date.now() - 172800000
           }
